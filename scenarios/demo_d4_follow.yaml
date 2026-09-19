@@ -1,0 +1,6 @@
+name: demo_d4_follow
+seed: 42
+instruction: Follow the moving green target but do not get closer than one body length.
+expect:
+  action_includes: [FOLLOW]
+  min_follow_distance_at_least: 1.0

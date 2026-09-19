@@ -58,6 +58,15 @@ class MockBodyAdapter(BodyAdapter):
                 "target_green_sphere", "target", "green", "sphere", x=0.0, y=-2.5, moving=True
             ),
             ArenaObject(
+                "target_yellow_object",
+                "object",
+                "yellow",
+                "object",
+                x=2.5,
+                y=-1.5,
+                moving=False,
+            ),
+            ArenaObject(
                 "obstacle_gray_box",
                 "obstacle",
                 "gray",
@@ -217,6 +226,7 @@ class MockBodyAdapter(BodyAdapter):
             "red": (220, 60, 60),
             "blue": (80, 120, 255),
             "green": (60, 220, 120),
+            "yellow": (236, 211, 61),
             "gray": (150, 150, 150),
             "white": (240, 240, 240),
         }

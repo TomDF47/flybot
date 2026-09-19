@@ -36,12 +36,18 @@ This is a **private research prototype** and **not safety-certified**.
   - CognitiveProvider interface with:
     - deterministic FakeBrain (default, no API key required)
     - optional OpenAI provider (`BRAIN_PROVIDER=openai`) behind interface
+- **M5–M8 prototype behaviors toward D2/D3/D4/D5**
+  - PATROL + OBSERVE mission steps with deterministic change detection counters
+  - mission timeline events and recording state surfaced through API/UI (`recording` remains off by default)
+  - FOLLOW action with min/max distance constraints and `TARGET_LOST` failure policy
+  - TOUCH/NUDGE step runner with approach/contact/retract sequencing and force-limit failure path
+  - INSPECT multi-viewpoint arc and RETURN_HOME mission chaining
 
 ### Not complete yet
 
 - Full FlyGym 2.x runtime integration is still environment-dependent and currently stubbed.
-- D2/D3/D4/D5 scenario-grade behavior implementations are not complete in this pass.
-- Touch calibration and benchmark/replay harnesses are scaffolded but not fully implemented.
+- OpenAI-driven planning quality for D2–D5 is not validated yet; CI defaults to FakeBrain + deterministic mock simulation.
+- Touch calibration and benchmark/replay are prototype-level (mock calibration hook implemented, real FlyGym force calibration pending).
 
 ## Repository structure
 
@@ -96,7 +102,12 @@ make api    # FastAPI on :8000
 make ui     # Vite UI on :5173 (proxying /api to :8000)
 make sim    # scripted D1-like walk-to-red-cube demo (enables TEST_GROUND_TRUTH=true)
 make demo   # mission demo (instruction configurable in script args)
+make demo-d2
+make demo-d3
+make demo-d4
+make demo-d5
 make test
+make test-demos
 make check
 ```
 
@@ -126,11 +137,16 @@ Key values:
 
 - Unit: safety clamping/geofence/contact-stop, FlyCore TTL handling
 - Contract: BodyAdapter behavior under deterministic mock simulation
-- Integration/scenario: seeded D1-like mission progression and D6 e-stop behavior
+- Integration/scenario:
+  - D1 seeded mission progression
+  - D6 e-stop path
+  - D2 patrol/observe change detection
+  - D3 touch once with target association
+  - D4 follow min-distance policy + TARGET_LOST policy
+  - D5 inspect then return-home
 
 ## Next milestone focus
 
-- Harden D1 and D6 with stricter scenario assertions and timing metrics
-- Implement full M3 perception flow for explicit target disambiguation edge cases
-- Expand M4 executive/brain replanning and error semantics
-- Continue toward D2/D4/D3/D5 in milestone order (M5–M8)
+- Implement real FlyGym 2.x `BodyAdapter` execution path (currently explicit TODO/stub)
+- Replace deterministic parser heuristics with robust structured OpenAI plan generation for D2–D5
+- Expand benchmark/replay tooling for full M9 acceptance metrics

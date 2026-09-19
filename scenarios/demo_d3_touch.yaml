@@ -1,0 +1,7 @@
+name: demo_d3_touch
+seed: 42
+instruction: Find the blue block and touch it once with your right front leg.
+expect:
+  action_includes: [TOUCH]
+  touch_contact_count: 1
+  touch_target_object_id: target_blue_block

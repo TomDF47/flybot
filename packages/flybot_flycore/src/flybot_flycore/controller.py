@@ -91,6 +91,17 @@ class L0FlyCoreController:
         )
         if range_error < 0.25:
             return MotorCommand(forward=0.0, turn=turn_command * 0.5)
+        if self._active_intent.mode == IntentMode.FOLLOW:
+            min_distance = self._active_intent.constraints.min_distance_body_lengths
+            max_distance = self._active_intent.constraints.max_distance_body_lengths
+            if min_distance is not None and range_error < (min_distance + 0.15):
+                return MotorCommand(forward=-0.35, turn=turn_command)
+            if (
+                min_distance is not None
+                and max_distance is not None
+                and min_distance <= range_error <= max_distance
+            ):
+                return MotorCommand(forward=0.0, turn=turn_command * 0.6)
         heading_alignment = max(0.0, 1.0 - abs(heading_error))
         forward_target = max(0.2, min(0.65, self._active_intent.desired_speed or 0.5))
         forward_command = self._clamp(
