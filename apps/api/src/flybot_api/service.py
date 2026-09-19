@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from os import getenv
+from pathlib import Path
 from time import monotonic
 from typing import Any
 
@@ -37,7 +39,10 @@ class FlyBotRuntime:
         )
         self.executive = MissionExecutive(config=self.config, resolver=self.resolver)
         self.safety_kernel = SafetyKernel(self.config.safety)
-        self.recorder = TelemetryRecorder()
+        telemetry_output = getenv("TELEMETRY_OUTPUT_JSONL", "").strip()
+        self.recorder = TelemetryRecorder(
+            output_path=Path(telemetry_output) if telemetry_output else None
+        )
         self.cognitive_provider = create_cognitive_provider(self.config.brain)
         self.latest_body_state: dict[str, Any] = {}
         self.latest_frame = Frame(timestamp_ns=0, is_placeholder=True, data_url=None)

@@ -15,7 +15,9 @@ Backend:
 - FastAPI app (`apps/api`) runs a control loop and exposes mission/state APIs.
 - `MissionExecutive` emits timeline events and per-mission metrics (change counts, follow distance, touch events).
 - `POST /api/recording` toggles operator-requested recording state (default remains off).
-- Body integration currently defaults to `MockBodyAdapter` with an optional FlyGym 2.x adapter stub.
+- Body integration supports:
+  - `MockBodyAdapter` (default CI/backend)
+  - `FlyGymBodyAdapter` (FlyGym 2.x musculoskeletal simulation + custom arena geoms + camera frames)
 
 Front-end:
 

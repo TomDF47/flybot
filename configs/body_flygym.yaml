@@ -3,6 +3,7 @@ simulation:
   flygym_version_assumption: "2.1.x or compatible 2.x"
   mujoco_backend: native
   notes:
-    - "This repository defaults to mock backend when FlyGym/MuJoCo is unavailable."
+    - "Set BODY_BACKEND=flygym (or SIMULATION_BACKEND=flygym) to use this adapter."
+    - "Repository defaults to BODY_BACKEND=mock for deterministic CI."
     - "Install extras with: uv sync --all-extras --dev"
-    - "FlyGym API compatibility has to be validated in runtime environment."
+    - "If host runtime cannot initialize FlyGym/MuJoCo, use Docker path documented in README."
