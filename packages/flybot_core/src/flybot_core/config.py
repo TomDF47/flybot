@@ -61,6 +61,7 @@ class EnvironmentSettings(BaseSettings):
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-5.6-sol-medium", alias="OPENAI_MODEL")
     brain_provider: str = Field(default="fake", alias="BRAIN_PROVIDER")
+    body_backend: str = Field(default="", alias="BODY_BACKEND")
     simulation_backend: str = Field(default="mock", alias="SIMULATION_BACKEND")
     simulation_seed: int = Field(default=42, alias="SIMULATION_SEED")
     allow_ground_truth_for_tests: bool = Field(default=False, alias="ALLOW_GROUND_TRUTH_FOR_TESTS")
@@ -92,7 +93,12 @@ def load_config(config_path: Path | str = Path("configs/default.yaml")) -> FlyBo
     environment_settings = EnvironmentSettings()
     loaded_config.brain.model = environment_settings.openai_model
     loaded_config.brain.provider = environment_settings.brain_provider
-    loaded_config.simulation.backend = environment_settings.simulation_backend
+    selected_backend = (
+        environment_settings.body_backend.strip()
+        if environment_settings.body_backend.strip()
+        else environment_settings.simulation_backend
+    )
+    loaded_config.simulation.backend = selected_backend
     loaded_config.simulation.seed = environment_settings.simulation_seed
     loaded_config.simulation.allow_ground_truth_for_tests = (
         environment_settings.allow_ground_truth_for_tests or environment_settings.test_ground_truth
