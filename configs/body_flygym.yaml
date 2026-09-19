@@ -1,0 +1,8 @@
+simulation:
+  backend: flygym
+  flygym_version_assumption: "2.1.x or compatible 2.x"
+  mujoco_backend: native
+  notes:
+    - "This repository defaults to mock backend when FlyGym/MuJoCo is unavailable."
+    - "Install extras with: uv sync --all-extras --dev"
+    - "FlyGym API compatibility has to be validated in runtime environment."
