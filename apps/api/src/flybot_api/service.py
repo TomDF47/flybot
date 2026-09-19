@@ -50,6 +50,7 @@ class FlyBotRuntime:
         self._active_intent_id: str | None = None
         self._control_task: asyncio.Task[None] | None = None
         self._running = False
+        self._recording_override: bool = False
 
     async def start(self) -> None:
         await self.reset(seed=self.config.simulation.seed)
@@ -83,6 +84,7 @@ class FlyBotRuntime:
         self.latest_frame = self.body_adapter.low_rate_frame()
         self.latest_safety_flags = []
         self._active_intent_id = None
+        self._recording_override = False
         self.recorder.emit("SIM_RESET", {"seed": seed})
 
     async def submit_instruction(self, instruction: str) -> str:
@@ -107,6 +109,12 @@ class FlyBotRuntime:
                 "failed_step": None
                 if mission_state.failed_step is None
                 else mission_state.failed_step.model_dump(mode="json"),
+                "timeline": mission_state.timeline,
+                "recording_enabled": mission_state.recording_enabled or self._recording_override,
+                "change_events_count": mission_state.change_events_count,
+                "follow_min_distance_observed": mission_state.follow_min_distance_observed,
+                "touch_contact_count": mission_state.touch_contact_count,
+                "touch_target_object_id": mission_state.touch_target_object_id,
             },
             world_state=self.latest_world_state,
             body_state=self.latest_body_state,
@@ -124,7 +132,7 @@ class FlyBotRuntime:
                 robot_pose=observation.pose,
                 world_snapshot=world_snapshot,
             )
-            active_intent = self.executive.tick(self.latest_world_state)
+            active_intent = self.executive.tick(self.latest_world_state, observation.contacts)
             if active_intent is not None and active_intent.intent_id != self._active_intent_id:
                 self.flycore.set_intent(active_intent)
                 self._active_intent_id = active_intent.intent_id
@@ -162,3 +170,7 @@ class FlyBotRuntime:
         body_state = await self.body_adapter.step(safety_outcome.clamped_command, dt_s=dt_s)
         self.latest_body_state = body_state.model_dump(mode="json")
         return self.latest_body_state
+
+    def set_recording(self, enabled: bool) -> None:
+        self._recording_override = enabled
+        self.recorder.emit("RECORDING_CHANGED", {"enabled": enabled, "source": "api_recording"})

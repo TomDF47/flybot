@@ -14,6 +14,8 @@ const poseText = computed(() => {
   return `x=${pose.x.toFixed(2)}, y=${pose.y.toFixed(2)}, heading=${pose.heading_rad.toFixed(2)}rad`;
 });
 
+const timelineEvents = computed(() => state.value?.mission?.timeline ?? []);
+
 async function fetchState() {
   const response = await fetch("/api/state");
   state.value = await response.json();
@@ -87,6 +89,7 @@ onUnmounted(() => {
       <button @click="resetSimulation">Reset</button>
       <p>Backend: {{ state?.backend || "n/a" }}</p>
       <p>Safety flags: {{ (state?.safety_flags || []).join(", ") || "none" }}</p>
+      <p>Recording: {{ state?.mission?.recording_enabled ? "ON" : "OFF" }}</p>
     </section>
     <section class="panel panel-telemetry">
       <h2>Telemetry</h2>
@@ -96,6 +99,17 @@ onUnmounted(() => {
       <p>Controller mode: {{ state?.controller?.mode ?? "n/a" }}</p>
       <p>Mission id: {{ state?.mission?.mission_id ?? "none" }}</p>
       <p>Completed steps: {{ (state?.mission?.completed_steps || []).length }}</p>
+      <p>Change events: {{ state?.mission?.change_events_count ?? 0 }}</p>
+      <p>Follow min distance: {{ state?.mission?.follow_min_distance_observed ?? "n/a" }}</p>
+    </section>
+    <section class="panel panel-timeline">
+      <h2>Mission timeline</h2>
+      <ul class="timeline">
+        <li v-for="(timelineEvent, index) in timelineEvents" :key="index">
+          <strong>{{ timelineEvent.event }}</strong>
+          <span>{{ JSON.stringify(timelineEvent.payload) }}</span>
+        </li>
+      </ul>
     </section>
   </main>
 </template>
@@ -165,5 +179,21 @@ button {
 .message {
   color: #8fb8ff;
   min-height: 1.2rem;
+}
+
+.timeline {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.timeline li {
+  color: #d5e2ff;
+}
+
+.timeline span {
+  margin-left: 0.35rem;
+  color: #9cb2e8;
 }
 </style>

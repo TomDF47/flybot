@@ -1,0 +1,6 @@
+name: demo_d5_inspect_return
+seed: 42
+instruction: Inspect the yellow object, circle it, then return home.
+expect:
+  action_sequence_includes: [INSPECT, RETURN_HOME]
+  home_distance_max: 0.8

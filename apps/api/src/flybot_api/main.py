@@ -19,6 +19,10 @@ class MissionRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=500)
 
 
+class RecordingRequest(BaseModel):
+    enabled: bool
+
+
 @app.on_event("startup")
 async def startup_event() -> None:
     await runtime.start()
@@ -64,6 +68,12 @@ async def api_reset(reset_request: ResetRequest) -> dict[str, object]:
 async def api_missions(mission_request: MissionRequest) -> dict[str, str]:
     mission_id = await runtime.submit_instruction(mission_request.instruction)
     return {"mission_id": mission_id}
+
+
+@app.post("/api/recording")
+async def api_recording(recording_request: RecordingRequest) -> dict[str, object]:
+    runtime.set_recording(recording_request.enabled)
+    return {"recording_enabled": recording_request.enabled}
 
 
 @app.get("/api/missions/{mission_id}")

@@ -18,13 +18,17 @@ async def run_demo(instruction: str, timeout_s: float) -> bool:
             if mission_state["mission_id"] == mission_id:
                 completed_steps = mission_state["completed_steps"]
                 failed_step = mission_state["failed_step"]
+                current_plan = runtime.executive.current_state().plan
                 print(
                     f"mission={mission_id} completed={len(completed_steps)} "
                     f"failed={failed_step is not None}"
                 )
                 if failed_step is not None:
                     return False
-                if completed_steps:
+                if (
+                    current_plan is not None
+                    and mission_state["active_step_index"] >= len(current_plan.steps)
+                ):
                     return True
             await asyncio.sleep(0.25)
         return False
