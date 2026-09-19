@@ -1,0 +1,5 @@
+name: arena_basic
+seed: 42
+description: Deterministic arena with red and blue static targets, one obstacle, and home marker.
+goals:
+  - Walk to the red cube.

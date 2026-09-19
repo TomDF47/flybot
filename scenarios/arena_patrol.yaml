@@ -1,0 +1,8 @@
+name: arena_patrol
+seed: 42
+description: Patrol route placeholder for M5.
+waypoints:
+  - [2.0, 2.0]
+  - [-2.0, 2.0]
+  - [-2.0, -2.0]
+  - [2.0, -2.0]

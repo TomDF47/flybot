@@ -1,0 +1,6 @@
+name: arena_touch
+seed: 42
+description: Touch calibration placeholder for M7.
+target:
+  label: cube
+  color: red

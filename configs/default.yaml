@@ -1,0 +1,28 @@
+brain:
+  provider: fake
+  model: ${OPENAI_MODEL}
+  request_timeout_s: 30
+  perception_interval_s: 0.5
+control:
+  flycore_hz: 100
+  executive_hz: 10
+  intent_ttl_ms: 1500
+  target_stale_ms: 500
+safety:
+  max_speed_normalised: 0.65
+  max_turn_normalised: 0.75
+  contact_profile: sim_conservative
+  contact_force_limit: 0.35
+  geofence:
+    x_min: -5.0
+    x_max: 5.0
+    y_min: -5.0
+    y_max: 5.0
+  stop_on_brain_disconnect: false
+  stop_on_executive_disconnect: true
+  record_images_by_default: false
+simulation:
+  backend: mock
+  seed: 42
+  render_operator_camera: true
+  allow_ground_truth_for_tests: false
