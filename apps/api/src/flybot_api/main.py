@@ -39,8 +39,8 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/api/state")
-async def api_state() -> dict[str, object]:
-    status = runtime.status()
+async def api_state(include_frame: bool = False) -> dict[str, object]:
+    status = runtime.status(include_frame_data_url=include_frame)
     return {
         "backend": status.backend,
         "body": status.body_state,
@@ -48,6 +48,14 @@ async def api_state() -> dict[str, object]:
         "controller": status.controller_state,
         "mission": status.mission_state,
         "safety_flags": status.safety_flags,
+        "frame": status.frame.model_dump(mode="json"),
+    }
+
+
+@app.get("/api/camera")
+async def api_camera() -> dict[str, object]:
+    status = runtime.status(include_frame_data_url=True)
+    return {
         "frame": status.frame.model_dump(mode="json"),
     }
 
@@ -73,12 +81,16 @@ async def api_missions(mission_request: MissionRequest) -> dict[str, str]:
 @app.post("/api/recording")
 async def api_recording(recording_request: RecordingRequest) -> dict[str, object]:
     runtime.set_recording(recording_request.enabled)
-    return {"recording_enabled": runtime.status().mission_state["recording_enabled"]}
+    return {
+        "recording_enabled": runtime.status(include_frame_data_url=False).mission_state[
+            "recording_enabled"
+        ]
+    }
 
 
 @app.get("/api/missions/{mission_id}")
 async def api_mission_state(mission_id: str) -> dict[str, object]:
-    mission_state = runtime.status().mission_state
+    mission_state = runtime.status(include_frame_data_url=False).mission_state
     if mission_state["mission_id"] != mission_id:
         raise HTTPException(status_code=404, detail="mission not found")
     return mission_state
