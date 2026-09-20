@@ -5,6 +5,7 @@ from time import monotonic
 import pytest
 
 from flybot_api.service import FlyBotRuntime
+from tests.integration.runtime_test_utils import configure_deterministic_runtime_env
 
 
 @pytest.mark.asyncio
@@ -12,20 +13,23 @@ async def test_session_recording_persists_frames_and_telemetry(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     recording_root = tmp_path / "recordings"
+    configure_deterministic_runtime_env(monkeypatch)
     monkeypatch.setenv("SESSION_RECORDING", "true")
     monkeypatch.setenv("RECORDINGS_ROOT", str(recording_root))
     monkeypatch.setenv("RECORDING_FRAME_INTERVAL_S", "0.1")
-    monkeypatch.setenv("BODY_BACKEND", "mock")
+    monkeypatch.setenv("RENDER_OPERATOR_CAMERA", "false")
 
     runtime = FlyBotRuntime()
     await runtime.start()
     try:
         started_at = monotonic()
-        while monotonic() - started_at < 2.0:
+        while monotonic() - started_at < 5.0:
             mission_state = runtime.status().mission_state
             if mission_state["recording_frame_count"] > 0:
                 break
             await asyncio.sleep(0.05)
+        else:
+            pytest.fail("Recording did not emit frames in allotted time")
     finally:
         await runtime.stop()
 

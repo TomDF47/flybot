@@ -176,6 +176,12 @@ Default output:
 - Unit: safety clamping/geofence/contact-stop, FlyCore TTL handling
 - Unit: config backend selection precedence
 - Contract: BodyAdapter behavior under deterministic mock simulation
+- Integration runtime harness hardening:
+  - D1/D2/D3/D4/D5/D6 and scenario tests pin
+    `BRAIN_PROVIDER=fake`, `BODY_BACKEND=mock`, `SIMULATION_BACKEND=mock`,
+    `SIMULATION_SEED`, and explicit ground-truth test flags.
+  - Mission waits derive timeout budgets from plan step timeouts plus buffer
+    instead of short fixed wall-clock sleeps.
 - Integration/scenario:
   - FlyGym adapter smoke when available (skips cleanly when unavailable)
   - D1 seeded mission progression
