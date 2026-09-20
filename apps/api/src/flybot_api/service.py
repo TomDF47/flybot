@@ -120,11 +120,14 @@ class FlyBotRuntime:
         )
         return plan.mission_id
 
-    def status(self) -> RuntimeStatus:
+    def status(self, *, include_frame_data_url: bool = True) -> RuntimeStatus:
         mission_state = self.executive.current_state()
         recording_enabled = self._is_recording_enabled()
+        frame = self.latest_frame
+        if not include_frame_data_url and frame.data_url is not None:
+            frame = frame.model_copy(update={"data_url": None})
         return RuntimeStatus(
-            frame=self.latest_frame,
+            frame=frame,
             safety_flags=self.latest_safety_flags,
             mission_state={
                 "mission_id": mission_state.mission_id,
