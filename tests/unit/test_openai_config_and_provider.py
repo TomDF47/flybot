@@ -2,9 +2,40 @@ from typing import Any
 
 import pytest
 
-from flybot_brain.providers import OpenAICognitiveProvider, normalize_mission_plan
+from flybot_brain.providers import (
+    OpenAICognitiveProvider,
+    normalize_mission_plan,
+    openai_strict_mission_plan_schema,
+)
 from flybot_core.config import BrainConfig, load_config
 from flybot_core.models import OnFailurePolicy, PlanAction, WorldState
+
+
+def _assert_strict_object_schema_rules(schema_node: object) -> None:
+    if isinstance(schema_node, dict):
+        additional_properties = schema_node.get("additionalProperties")
+        assert additional_properties is not True
+
+        raw_node_type = schema_node.get("type")
+        schema_types: list[str] = []
+        if isinstance(raw_node_type, str):
+            schema_types = [raw_node_type]
+        elif isinstance(raw_node_type, list):
+            schema_types = [value for value in raw_node_type if isinstance(value, str)]
+
+        if "object" in schema_types:
+            assert additional_properties is False
+            properties = schema_node.get("properties")
+            required_fields = schema_node.get("required")
+            if isinstance(properties, dict):
+                assert isinstance(required_fields, list)
+                assert set(required_fields) == set(properties.keys())
+
+        for child_value in schema_node.values():
+            _assert_strict_object_schema_rules(child_value)
+    elif isinstance(schema_node, list):
+        for child_value in schema_node:
+            _assert_strict_object_schema_rules(child_value)
 
 
 def test_load_config_parses_openai_model_and_reasoning_effort_separately(
@@ -61,6 +92,47 @@ def test_normalize_mission_plan_populates_missing_ids_and_step_defaults() -> Non
     assert normalized_plan.steps[0].parameters == {}
 
 
+def test_normalize_mission_plan_coerces_strict_schema_pair_fields_to_dicts() -> None:
+    normalized_plan = normalize_mission_plan(
+        {
+            "mission_id": "mission_test",
+            "objective": "Navigate and inspect.",
+            "steps": [
+                {
+                    "step_id": "step_1",
+                    "action": "navigate",
+                    "target": {
+                        "label": "cube",
+                        "attributes": [{"key": "color", "value": "red"}],
+                        "track_id": "track_1",
+                    },
+                    "parameters": [
+                        {"key": "speed", "value": "0.45"},
+                        {"key": "allow_recording", "value": "false"},
+                        {"key": "waypoints", "value": "[[0.0, 0.0], [1.0, 1.0]]"},
+                        {"key": "label", "value": "\"inspect\""},
+                        {"key": "raw_value", "value": "not-json"},
+                    ],
+                    "timeout_s": 12.0,
+                    "on_failure": "replan",
+                }
+            ],
+            "completion_summary_fields": ["result"],
+        }
+    )
+
+    first_step = normalized_plan.steps[0]
+    assert first_step.target is not None
+    assert first_step.target.attributes == {"color": "red"}
+    assert first_step.parameters == {
+        "speed": 0.45,
+        "allow_recording": False,
+        "waypoints": [[0.0, 0.0], [1.0, 1.0]],
+        "label": "inspect",
+        "raw_value": "not-json",
+    }
+
+
 @pytest.mark.asyncio
 async def test_openai_provider_sends_reasoning_effort_as_separate_field(
     monkeypatch: pytest.MonkeyPatch,
@@ -106,10 +178,14 @@ async def test_openai_provider_sends_reasoning_effort_as_separate_field(
     assert captured_request["text"]["format"]["type"] == "json_schema"
     assert captured_request["text"]["format"]["name"] == "mission_plan"
     schema = captured_request["text"]["format"]["schema"]
-    assert "required" in schema
-    assert "mission_id" in schema["required"]
-    schema_definitions = schema.get("$defs", schema.get("definitions", {}))
+    assert schema == openai_strict_mission_plan_schema()
+    _assert_strict_object_schema_rules(schema)
+    schema_definitions = schema["$defs"]
     assert "step_id" in schema_definitions["PlanStep"]["required"]
+    assert "parameters" in schema_definitions["PlanStep"]["required"]
+    assert schema_definitions["PlanStep"]["properties"]["parameters"]["items"]["$ref"] == (
+        "#/$defs/ParameterPair"
+    )
     system_prompt = captured_request["input"][0]["content"]
     required_step_fields_message = (
         "Every PlanStep must include step_id, action, parameters, timeout_s, on_failure."
