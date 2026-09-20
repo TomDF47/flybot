@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from openai import OpenAI
 
@@ -88,6 +88,81 @@ def _coerced_timeout_seconds(raw_timeout: object) -> float:
     return _DEFAULT_STEP_TIMEOUT_S
 
 
+def _normalized_non_empty_string(raw_value: object) -> str | None:
+    if isinstance(raw_value, str):
+        normalized_value = raw_value.strip()
+        if normalized_value:
+            return normalized_value
+    return None
+
+
+def _coerced_string_dictionary(raw_value: object) -> dict[str, str]:
+    normalized_mapping: dict[str, str] = {}
+    if isinstance(raw_value, dict):
+        for key, value in raw_value.items():
+            if not isinstance(key, str):
+                continue
+            normalized_key = key.strip()
+            if not normalized_key:
+                continue
+            if value is None:
+                continue
+            normalized_mapping[normalized_key] = value if isinstance(value, str) else str(value)
+        return normalized_mapping
+
+    if isinstance(raw_value, list):
+        for raw_entry in raw_value:
+            if not isinstance(raw_entry, dict):
+                continue
+            normalized_key = _normalized_non_empty_string(raw_entry.get("key"))
+            if normalized_key is None:
+                continue
+            raw_entry_value = raw_entry.get("value")
+            if raw_entry_value is None:
+                continue
+            normalized_mapping[normalized_key] = (
+                raw_entry_value if isinstance(raw_entry_value, str) else str(raw_entry_value)
+            )
+    return normalized_mapping
+
+
+def _coerced_parameter_value(raw_value: object) -> object:
+    if not isinstance(raw_value, str):
+        return raw_value
+
+    normalized_value = raw_value.strip()
+    if not normalized_value:
+        return ""
+    try:
+        return json.loads(normalized_value)
+    except json.JSONDecodeError:
+        return raw_value
+
+
+def _coerced_parameter_dictionary(raw_value: object) -> dict[str, object]:
+    normalized_parameters: dict[str, object] = {}
+    if isinstance(raw_value, dict):
+        for key, value in raw_value.items():
+            if not isinstance(key, str):
+                continue
+            normalized_key = key.strip()
+            if not normalized_key:
+                continue
+            normalized_parameters[normalized_key] = value
+        return normalized_parameters
+
+    if isinstance(raw_value, list):
+        for raw_entry in raw_value:
+            if not isinstance(raw_entry, dict):
+                continue
+            normalized_key = _normalized_non_empty_string(raw_entry.get("key"))
+            if normalized_key is None:
+                continue
+            normalized_parameters[normalized_key] = _coerced_parameter_value(raw_entry.get("value"))
+
+    return normalized_parameters
+
+
 def _coerced_target_spec(raw_target: object) -> TargetSpec | None:
     if raw_target is None:
         return None
@@ -99,10 +174,20 @@ def _coerced_target_spec(raw_target: object) -> TargetSpec | None:
             return TargetSpec(label=normalized_label)
         return None
     if isinstance(raw_target, dict):
-        try:
-            return TargetSpec.model_validate(raw_target)
-        except Exception:
+        normalized_label = _normalized_non_empty_string(raw_target.get("label"))
+        normalized_track_id = _normalized_non_empty_string(raw_target.get("track_id"))
+        normalized_attributes = _coerced_string_dictionary(raw_target.get("attributes"))
+        if (
+            normalized_label is None
+            and normalized_track_id is None
+            and not normalized_attributes
+        ):
             return None
+        return TargetSpec(
+            label=normalized_label,
+            attributes=normalized_attributes,
+            track_id=normalized_track_id,
+        )
     return None
 
 
@@ -131,7 +216,7 @@ def normalize_mission_plan(
         for raw_step in raw_steps:
             step_payload = raw_step if isinstance(raw_step, dict) else {}
             raw_parameters = step_payload.get("parameters")
-            parameters = raw_parameters if isinstance(raw_parameters, dict) else {}
+            parameters = _coerced_parameter_dictionary(raw_parameters)
             normalized_steps.append(
                 PlanStep(
                     step_id=_normalized_identifier(step_payload.get("step_id"), "step"),
@@ -160,6 +245,92 @@ def normalize_mission_plan(
         steps=normalized_steps,
         completion_summary_fields=completion_summary_fields,
     )
+
+
+def openai_strict_mission_plan_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "title": "MissionPlan",
+        "additionalProperties": False,
+        "properties": {
+            "mission_id": {"type": "string"},
+            "objective": {"type": "string"},
+            "assumptions": {"type": "array", "items": {"type": "string"}},
+            "steps": {"type": "array", "items": {"$ref": "#/$defs/PlanStep"}},
+            "completion_summary_fields": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [
+            "mission_id",
+            "objective",
+            "assumptions",
+            "steps",
+            "completion_summary_fields",
+        ],
+        "$defs": {
+            "PlanStep": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "step_id": {"type": "string"},
+                    "action": {"type": "string", "enum": [action.value for action in PlanAction]},
+                    "target": {
+                        "anyOf": [
+                            {"$ref": "#/$defs/TargetSpec"},
+                            {"type": "null"},
+                        ]
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/ParameterPair"},
+                    },
+                    "timeout_s": {"type": "number"},
+                    "on_failure": {
+                        "type": "string",
+                        "enum": [policy.value for policy in OnFailurePolicy],
+                    },
+                },
+                "required": [
+                    "step_id",
+                    "action",
+                    "target",
+                    "parameters",
+                    "timeout_s",
+                    "on_failure",
+                ],
+            },
+            "TargetSpec": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "label": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "attributes": {
+                        "type": "array",
+                        "items": {"$ref": "#/$defs/StringPair"},
+                    },
+                    "track_id": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                },
+                "required": ["label", "attributes", "track_id"],
+            },
+            "ParameterPair": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string"},
+                    "value": {"type": "string"},
+                },
+                "required": ["key", "value"],
+            },
+            "StringPair": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "key": {"type": "string"},
+                    "value": {"type": "string"},
+                },
+                "required": ["key", "value"],
+            },
+        },
+    }
 
 
 @dataclass
@@ -361,7 +532,7 @@ class OpenAICognitiveProvider:
                 "format": {
                     "type": "json_schema",
                     "name": "mission_plan",
-                    "schema": MissionPlan.model_json_schema(),
+                    "schema": openai_strict_mission_plan_schema(),
                     "strict": True,
                 }
             },

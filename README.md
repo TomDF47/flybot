@@ -28,6 +28,9 @@ Still prototype-level:
 - OpenAI planning uses Responses structured outputs (MissionPlan JSON schema) and
   performs post-processing normalization so missing `mission_id`/`step_id` and
   absent step defaults can be repaired safely at runtime.
+- For OpenAI strict JSON schema compatibility, free-form maps (`PlanStep.parameters`
+  and `TargetSpec.attributes`) are encoded as key/value arrays in the model output
+  schema and coerced back to runtime dictionaries during normalization.
 
 ## Repository structure
 
