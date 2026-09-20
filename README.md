@@ -95,6 +95,17 @@ make test-demos
 make check
 ```
 
+### Operator UI state polling and camera payloads
+
+To prevent large `frame.data_url` payloads from blocking UI polling:
+
+- `/api/state` defaults to `include_frame=0` (no base64 frame bytes in the
+  state poll response)
+- `/api/state?include_frame=1` includes the full `frame.data_url`
+- `/api/camera` returns frame payloads for camera refresh paths
+- the operator UI polls state and camera separately so telemetry remains
+  responsive even when camera frames are large
+
 ### One-command full demo flow (D1–D6)
 
 `make demo` runs these instructions in order:

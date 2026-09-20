@@ -5,7 +5,14 @@ const state = ref(null);
 const instruction = ref("Walk to the red cube.");
 const message = ref("");
 const apiError = ref("");
+const cameraDataUrl = ref(null);
+const cameraError = ref("");
 let pollTimer = null;
+let cameraPollTimer = null;
+let latestCameraTimestampNs = 0;
+
+const STATE_POLL_INTERVAL_MS = 500;
+const CAMERA_POLL_INTERVAL_MS = 2000;
 
 function asObject(value) {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
@@ -89,7 +96,7 @@ const missionIdentifier = computed(() => {
 
 async function fetchState() {
   try {
-    const response = await fetch("/api/state");
+    const response = await fetch("/api/state?include_frame=0");
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -101,6 +108,30 @@ async function fetchState() {
     apiError.value = "";
   } catch (error) {
     apiError.value = extractErrorMessage(error, "Unable to load /api/state");
+  }
+}
+
+async function fetchCameraFrame() {
+  try {
+    const response = await fetch("/api/camera");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const payload = asObject(await response.json());
+    const frame = asObject(payload.frame);
+    const frameDataUrl = typeof frame.data_url === "string" ? frame.data_url : null;
+    const frameTimestampNs = asFiniteNumber(frame.timestamp_ns);
+
+    if (frameTimestampNs !== null && frameTimestampNs <= latestCameraTimestampNs) {
+      return;
+    }
+    if (frameTimestampNs !== null) {
+      latestCameraTimestampNs = frameTimestampNs;
+    }
+    cameraDataUrl.value = frameDataUrl;
+    cameraError.value = "";
+  } catch (error) {
+    cameraError.value = extractErrorMessage(error, "Unable to load /api/camera");
   }
 }
 
@@ -174,14 +205,21 @@ async function toggleRecording() {
 
 onMounted(() => {
   void fetchState();
+  void fetchCameraFrame();
   pollTimer = setInterval(() => {
     void fetchState();
-  }, 500);
+  }, STATE_POLL_INTERVAL_MS);
+  cameraPollTimer = setInterval(() => {
+    void fetchCameraFrame();
+  }, CAMERA_POLL_INTERVAL_MS);
 });
 
 onUnmounted(() => {
   if (pollTimer !== null) {
     clearInterval(pollTimer);
+  }
+  if (cameraPollTimer !== null) {
+    clearInterval(cameraPollTimer);
   }
 });
 </script>
@@ -199,10 +237,11 @@ onUnmounted(() => {
     </section>
     <section class="panel panel-camera">
       <h2>Camera</h2>
+      <p v-if="cameraError" class="error-banner">{{ cameraError }}</p>
       <img
-        v-if="state?.frame?.data_url"
+        v-if="cameraDataUrl"
         class="camera"
-        :src="state.frame.data_url"
+        :src="cameraDataUrl"
         alt="FlyBot camera"
       />
       <div v-else class="placeholder">No camera frame available</div>
