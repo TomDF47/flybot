@@ -20,7 +20,7 @@ class MissionRequest(BaseModel):
 
 
 class RecordingRequest(BaseModel):
-    enabled: bool
+    enabled: bool = False
 
 
 @app.on_event("startup")
@@ -73,7 +73,7 @@ async def api_missions(mission_request: MissionRequest) -> dict[str, str]:
 @app.post("/api/recording")
 async def api_recording(recording_request: RecordingRequest) -> dict[str, object]:
     runtime.set_recording(recording_request.enabled)
-    return {"recording_enabled": recording_request.enabled}
+    return {"recording_enabled": runtime.status().mission_state["recording_enabled"]}
 
 
 @app.get("/api/missions/{mission_id}")

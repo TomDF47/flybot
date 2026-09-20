@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+OpenAIReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
 
 class BrainConfig(BaseModel):
     provider: str = "fake"
-    model: str = "gpt-5.6-sol-medium"
+    model: str = "gpt-5"
+    reasoning_effort: OpenAIReasoningEffort = "medium"
     request_timeout_s: float = 30.0
     perception_interval_s: float = 0.5
 
@@ -59,7 +62,10 @@ class EnvironmentSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-5.6-sol-medium", alias="OPENAI_MODEL")
+    openai_model: str = Field(default="gpt-5", alias="OPENAI_MODEL")
+    openai_reasoning_effort: OpenAIReasoningEffort = Field(
+        default="medium", alias="OPENAI_REASONING_EFFORT"
+    )
     brain_provider: str = Field(default="fake", alias="BRAIN_PROVIDER")
     body_backend: str = Field(default="", alias="BODY_BACKEND")
     simulation_backend: str = Field(default="mock", alias="SIMULATION_BACKEND")
@@ -71,6 +77,10 @@ class EnvironmentSettings(BaseSettings):
     max_speed_normalised: float = Field(default=0.65, alias="MAX_SPEED_NORMALISED")
     max_turn_normalised: float = Field(default=0.75, alias="MAX_TURN_NORMALISED")
     contact_force_limit: float = Field(default=0.35, alias="CONTACT_FORCE_LIMIT")
+    record_images_by_default: bool = Field(default=False, alias="RECORD_IMAGES_BY_DEFAULT")
+    session_recording: bool = Field(default=False, alias="SESSION_RECORDING")
+    recordings_root: str = Field(default="artifacts/recordings", alias="RECORDINGS_ROOT")
+    recording_frame_interval_s: float = Field(default=0.5, alias="RECORDING_FRAME_INTERVAL_S")
 
 
 def _expand_environment_variables(value: Any) -> Any:
@@ -92,6 +102,7 @@ def load_config(config_path: Path | str = Path("configs/default.yaml")) -> FlyBo
     loaded_config = FlyBotConfig.model_validate(expanded_data)
     environment_settings = EnvironmentSettings()
     loaded_config.brain.model = environment_settings.openai_model
+    loaded_config.brain.reasoning_effort = environment_settings.openai_reasoning_effort
     loaded_config.brain.provider = environment_settings.brain_provider
     selected_backend = (
         environment_settings.body_backend.strip()
@@ -108,4 +119,5 @@ def load_config(config_path: Path | str = Path("configs/default.yaml")) -> FlyBo
     loaded_config.safety.max_speed_normalised = environment_settings.max_speed_normalised
     loaded_config.safety.max_turn_normalised = environment_settings.max_turn_normalised
     loaded_config.safety.contact_force_limit = environment_settings.contact_force_limit
+    loaded_config.safety.record_images_by_default = environment_settings.record_images_by_default
     return loaded_config
