@@ -25,6 +25,9 @@ Still prototype-level:
 
 - Recording/replay/benchmark are lightweight scaffolds, not final research analytics.
 - OpenAI planning remains optional and is not required for CI/demo success.
+- OpenAI planning uses Responses structured outputs (MissionPlan JSON schema) and
+  performs post-processing normalization so missing `mission_id`/`step_id` and
+  absent step defaults can be repaired safely at runtime.
 
 ## Repository structure
 
@@ -131,7 +134,9 @@ Key values:
 
 - `BRAIN_PROVIDER=fake|openai`
 - `OPENAI_MODEL=<model-name>` (clean Responses API model id, e.g. `gpt-5`)
-- `OPENAI_REASONING_EFFORT=minimal|low|medium|high|none|xhigh|max` (sent as `reasoning.effort`, never concatenated into model names)
+- `OPENAI_REASONING_EFFORT=minimal|low|medium|high|xhigh`
+  (`none` is normalized to `minimal`, `max` is normalized to `xhigh`; unknown
+  values fail fast with a clear config error)
 - `BODY_BACKEND=mock|flygym` (preferred selector)
 - `SIMULATION_BACKEND=mock|flygym`
 - `ALLOW_GROUND_TRUTH_FOR_TESTS=true|false`
@@ -180,6 +185,8 @@ Default output:
   - D1/D2/D3/D4/D5/D6 and scenario tests pin
     `BRAIN_PROVIDER=fake`, `BODY_BACKEND=mock`, `SIMULATION_BACKEND=mock`,
     `SIMULATION_SEED`, and explicit ground-truth test flags.
+  - OpenAI runtime path has a mocked integration check that validates plan
+    normalization when a model response omits step identifiers.
   - Mission waits derive timeout budgets from plan step timeouts plus buffer
     instead of short fixed wall-clock sleeps.
 - Integration/scenario:
