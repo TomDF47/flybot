@@ -114,13 +114,13 @@ def _coerced_string_dictionary(raw_value: object) -> dict[str, str]:
         for raw_entry in raw_value:
             if not isinstance(raw_entry, dict):
                 continue
-            normalized_key = _normalized_non_empty_string(raw_entry.get("key"))
-            if normalized_key is None:
+            pair_key = _normalized_non_empty_string(raw_entry.get("key"))
+            if pair_key is None:
                 continue
             raw_entry_value = raw_entry.get("value")
             if raw_entry_value is None:
                 continue
-            normalized_mapping[normalized_key] = (
+            normalized_mapping[pair_key] = (
                 raw_entry_value if isinstance(raw_entry_value, str) else str(raw_entry_value)
             )
     return normalized_mapping
@@ -155,10 +155,10 @@ def _coerced_parameter_dictionary(raw_value: object) -> dict[str, object]:
         for raw_entry in raw_value:
             if not isinstance(raw_entry, dict):
                 continue
-            normalized_key = _normalized_non_empty_string(raw_entry.get("key"))
-            if normalized_key is None:
+            pair_key = _normalized_non_empty_string(raw_entry.get("key"))
+            if pair_key is None:
                 continue
-            normalized_parameters[normalized_key] = _coerced_parameter_value(raw_entry.get("value"))
+            normalized_parameters[pair_key] = _coerced_parameter_value(raw_entry.get("value"))
 
     return normalized_parameters
 
@@ -169,9 +169,9 @@ def _coerced_target_spec(raw_target: object) -> TargetSpec | None:
     if isinstance(raw_target, TargetSpec):
         return raw_target
     if isinstance(raw_target, str):
-        normalized_label = raw_target.strip()
-        if normalized_label:
-            return TargetSpec(label=normalized_label)
+        normalized_target_label = raw_target.strip()
+        if normalized_target_label:
+            return TargetSpec(label=normalized_target_label)
         return None
     if isinstance(raw_target, dict):
         normalized_label = _normalized_non_empty_string(raw_target.get("label"))
