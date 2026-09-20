@@ -84,6 +84,8 @@ make demo-d3
 make demo-d4
 make demo-d5
 make benchmark
+make replay
+make replay-session
 make calibrate-contact
 make test
 make test-demos
@@ -128,12 +130,34 @@ See `.env.example`.
 Key values:
 
 - `BRAIN_PROVIDER=fake|openai`
-- `OPENAI_MODEL=<model-name>` (model name is config-driven, never hard-coded in domain code)
+- `OPENAI_MODEL=<model-name>` (clean Responses API model id, e.g. `gpt-5`)
+- `OPENAI_REASONING_EFFORT=minimal|low|medium|high|none|xhigh|max` (sent as `reasoning.effort`, never concatenated into model names)
 - `BODY_BACKEND=mock|flygym` (preferred selector)
 - `SIMULATION_BACKEND=mock|flygym`
 - `ALLOW_GROUND_TRUTH_FOR_TESTS=true|false`
 - `TEST_GROUND_TRUTH=true|false` (scenario/demo-only deterministic perception shortcut)
 - `TELEMETRY_OUTPUT_JSONL=<path>` (optional telemetry JSONL sink)
+- `SESSION_RECORDING=true|false` (default off; when on, persists frames + telemetry under `artifacts/recordings/<session_id>/`)
+- `RECORD_IMAGES_BY_DEFAULT=true|false` (default off; force recording state on mission steps)
+- `RECORDINGS_ROOT=<path>` (default `artifacts/recordings`)
+- `RECORDING_FRAME_INTERVAL_S=<seconds>` (default `0.5`, minimum `0.1`)
+
+## Session recording and replay (default off)
+
+Recording remains off by default for privacy. For local demo runs:
+
+```bash
+SESSION_RECORDING=true make demo
+```
+
+Then replay the saved session:
+
+```bash
+uv run python scripts/replay_session.py --list
+uv run python scripts/replay_session.py artifacts/recordings/<session_id>
+```
+
+`replay_session.py` writes an MP4 when `ffmpeg` is available; otherwise it writes an HTML frame scrubber (`replay.html`) in the recording directory.
 
 ## Contact calibration artifact
 

@@ -282,14 +282,16 @@ class FlyGymBodyAdapter(BodyAdapter):
         self._floor_geom_name = "floor"
 
         try:
-            import flygym  # type: ignore[import-untyped]  # noqa: F401
-            import mujoco as mj  # type: ignore[import-untyped]
-            from flygym.compose import (  # type: ignore[import-untyped]
+            import flygym  # type: ignore[import-not-found,import-untyped]  # noqa: F401
+            import mujoco as mj  # type: ignore[import-not-found,import-untyped]
+            from flygym.compose import (  # type: ignore[import-not-found,import-untyped]
                 ActuatorType,
                 MusculoskeletalFly,
                 MusculoskeletalWorld,
             )
-            from flygym.simulation import Simulation  # type: ignore[import-untyped]
+            from flygym.simulation import (  # type: ignore[import-not-found,import-untyped]
+                Simulation,
+            )
         except ImportError as error:
             raise RuntimeError(
                 "FlyGym 2.x backend is unavailable. Install with "

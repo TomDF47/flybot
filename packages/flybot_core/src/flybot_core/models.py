@@ -128,15 +128,15 @@ class ObjectTrack(BaseModel):
     relative_bearing_rad: float | None = None
     relative_range_body_lengths: float | None = None
     world_pose: Pose2D | None = None
-    moving: bool
-    last_seen_ns: int
+    moving: bool = False
+    last_seen_ns: int = Field(default_factory=monotonic_ns)
     contactable: bool = True
 
 
 class WorldState(BaseModel):
-    robot_pose: Pose2D | None
-    home_pose: Pose2D
-    objects: list[ObjectTrack]
+    robot_pose: Pose2D | None = None
+    home_pose: Pose2D = Field(default_factory=lambda: Pose2D(x=0.0, y=0.0, heading_rad=0.0))
+    objects: list[ObjectTrack] = Field(default_factory=list)
     current_region: str | None = None
     scene_revision: int = 0
     active_safety_flags: list[str] = Field(default_factory=list)
@@ -151,9 +151,9 @@ class TargetSpec(BaseModel):
 class PlanStep(BaseModel):
     step_id: str
     action: PlanAction
-    target: TargetSpec | None
+    target: TargetSpec | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
-    timeout_s: float
+    timeout_s: float = 30.0
     on_failure: OnFailurePolicy = OnFailurePolicy.REPLAN
 
 

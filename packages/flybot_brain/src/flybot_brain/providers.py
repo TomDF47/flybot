@@ -7,7 +7,7 @@ from typing import Protocol
 
 from openai import OpenAI
 
-from flybot_core.config import BrainConfig, EnvironmentSettings
+from flybot_core.config import BrainConfig, EnvironmentSettings, OpenAIReasoningEffort
 from flybot_core.ids import new_identifier
 from flybot_core.models import (
     MissionPlan,
@@ -211,11 +211,13 @@ class OpenAICognitiveProvider:
     brain_config: BrainConfig
     openai_model: str
     openai_api_key: str
+    openai_reasoning_effort: OpenAIReasoningEffort
 
     async def build_plan(self, instruction: str, world_state: WorldState) -> MissionPlan:
         client = OpenAI(api_key=self.openai_api_key)
         response = client.responses.create(
             model=self.openai_model,
+            reasoning={"effort": self.openai_reasoning_effort},
             input=[
                 {
                     "role": "system",
@@ -255,5 +257,6 @@ def create_cognitive_provider(brain_config: BrainConfig) -> CognitiveProvider:
             brain_config=brain_config,
             openai_model=brain_config.model,
             openai_api_key=environment_settings.openai_api_key,
+            openai_reasoning_effort=brain_config.reasoning_effort,
         )
     return FakeBrainProvider(brain_config=brain_config)

@@ -47,6 +47,18 @@ async function sendMission() {
   message.value = `Mission submitted: ${payload.mission_id}`;
 }
 
+async function toggleRecording() {
+  const currentRecordingState = Boolean(state.value?.mission?.recording_enabled);
+  const response = await fetch("/api/recording", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: !currentRecordingState })
+  });
+  const payload = await response.json();
+  message.value = `Recording ${payload.recording_enabled ? "enabled" : "disabled"}`;
+  await fetchState();
+}
+
 onMounted(async () => {
   await fetchState();
   pollTimer = setInterval(() => {
@@ -87,6 +99,9 @@ onUnmounted(() => {
       <h2>Safety controls</h2>
       <button class="danger" @click="triggerEstop">E-STOP</button>
       <button @click="resetSimulation">Reset</button>
+      <button @click="toggleRecording">
+        {{ state?.mission?.recording_enabled ? "Disable recording" : "Enable recording" }}
+      </button>
       <p>Backend: {{ state?.backend || "n/a" }}</p>
       <p>Safety flags: {{ (state?.safety_flags || []).join(", ") || "none" }}</p>
       <p>Recording: {{ state?.mission?.recording_enabled ? "ON" : "OFF" }}</p>

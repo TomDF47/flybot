@@ -1,6 +1,6 @@
 PYTHONPATH := apps/api/src:packages/flybot_core/src:packages/flybot_body_flygym/src:packages/flybot_flycore/src:packages/flybot_safety/src:packages/flybot_perception/src:packages/flybot_brain/src:packages/flybot_executive/src:packages/flybot_telemetry/src
 
-.PHONY: sync sim api ui test lint typecheck check demo demo-d2 demo-d3 demo-d4 demo-d5 test-demos benchmark replay calibrate-contact
+.PHONY: sync sim api ui test lint typecheck check demo demo-d2 demo-d3 demo-d4 demo-d5 test-demos benchmark replay replay-session calibrate-contact
 
 sync:
 	uv sync --all-extras --dev
@@ -48,6 +48,9 @@ benchmark:
 
 replay:
 	PYTHONPATH=$(PYTHONPATH) uv run python scripts/replay.py artifacts/telemetry/latest.jsonl
+
+replay-session:
+	PYTHONPATH=$(PYTHONPATH) uv run python scripts/replay_session.py --list
 
 calibrate-contact:
 	TEST_GROUND_TRUTH=true BODY_BACKEND=mock PYTHONPATH=$(PYTHONPATH) uv run python scripts/calibrate_contact.py --trials 5 --output artifacts/calibration/contact_profile_mock.json
