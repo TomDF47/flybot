@@ -7,9 +7,11 @@ from flybot_api.service import FlyBotRuntime
 
 @pytest.mark.asyncio
 async def test_flygym_backend_smoke_if_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BRAIN_PROVIDER", "fake")
     monkeypatch.setenv("BODY_BACKEND", "flygym")
     monkeypatch.setenv("SIMULATION_BACKEND", "flygym")
     monkeypatch.setenv("TEST_GROUND_TRUTH", "true")
+    monkeypatch.setenv("ALLOW_GROUND_TRUTH_FOR_TESTS", "true")
 
     try:
         runtime = FlyBotRuntime()
