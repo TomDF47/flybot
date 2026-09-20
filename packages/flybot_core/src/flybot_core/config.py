@@ -2,13 +2,34 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-OpenAIReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+OpenAIReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
+_OPENAI_REASONING_EFFORT_ALIASES = {
+    "none": "minimal",
+    "max": "xhigh",
+}
+_OPENAI_REASONING_EFFORT_VALUES = ("minimal", "low", "medium", "high", "xhigh")
+
+
+def normalize_openai_reasoning_effort(raw_effort: object) -> OpenAIReasoningEffort:
+    if not isinstance(raw_effort, str):
+        raise ValueError(
+            "OPENAI_REASONING_EFFORT must be one of "
+            f"{'|'.join(_OPENAI_REASONING_EFFORT_VALUES)}"
+        )
+    normalized_effort = raw_effort.strip().lower()
+    normalized_effort = _OPENAI_REASONING_EFFORT_ALIASES.get(normalized_effort, normalized_effort)
+    if normalized_effort not in _OPENAI_REASONING_EFFORT_VALUES:
+        raise ValueError(
+            f"OPENAI_REASONING_EFFORT='{raw_effort}' is unsupported. "
+            f"Use one of {'|'.join(_OPENAI_REASONING_EFFORT_VALUES)}."
+        )
+    return cast(OpenAIReasoningEffort, normalized_effort)
 
 
 class BrainConfig(BaseModel):
@@ -17,6 +38,11 @@ class BrainConfig(BaseModel):
     reasoning_effort: OpenAIReasoningEffort = "medium"
     request_timeout_s: float = 30.0
     perception_interval_s: float = 0.5
+
+    @field_validator("reasoning_effort", mode="before")
+    @classmethod
+    def validate_reasoning_effort(cls, raw_effort: object) -> OpenAIReasoningEffort:
+        return normalize_openai_reasoning_effort(raw_effort)
 
 
 class ControlConfig(BaseModel):
@@ -81,6 +107,11 @@ class EnvironmentSettings(BaseSettings):
     session_recording: bool = Field(default=False, alias="SESSION_RECORDING")
     recordings_root: str = Field(default="artifacts/recordings", alias="RECORDINGS_ROOT")
     recording_frame_interval_s: float = Field(default=0.5, alias="RECORDING_FRAME_INTERVAL_S")
+
+    @field_validator("openai_reasoning_effort", mode="before")
+    @classmethod
+    def validate_openai_reasoning_effort(cls, raw_effort: object) -> OpenAIReasoningEffort:
+        return normalize_openai_reasoning_effort(raw_effort)
 
 
 def _expand_environment_variables(value: Any) -> Any:

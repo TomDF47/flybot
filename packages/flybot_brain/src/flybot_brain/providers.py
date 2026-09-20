@@ -18,9 +18,148 @@ from flybot_core.models import (
     WorldState,
 )
 
+_DEFAULT_STEP_TIMEOUT_S = 30.0
+_DEFAULT_ON_FAILURE_POLICY = OnFailurePolicy.REPLAN
+_PLAN_ACTION_ALIASES = {
+    "MOVE": PlanAction.NAVIGATE,
+    "MOVE_TO": PlanAction.NAVIGATE,
+    "GO": PlanAction.NAVIGATE,
+    "GO_TO": PlanAction.NAVIGATE,
+    "HALT": PlanAction.STOP,
+}
+_ON_FAILURE_ALIASES = {
+    "ABORT": OnFailurePolicy.STOP,
+    "CANCEL": OnFailurePolicy.STOP,
+    "CONTINUE": OnFailurePolicy.SKIP,
+}
+
 
 class CognitiveProvider(Protocol):
     async def build_plan(self, instruction: str, world_state: WorldState) -> MissionPlan: ...
+
+
+def _normalized_identifier(raw_identifier: object, prefix: str) -> str:
+    if isinstance(raw_identifier, str):
+        normalized_identifier = raw_identifier.strip()
+        if normalized_identifier:
+            return normalized_identifier
+    return new_identifier(prefix)
+
+
+def _normalized_string_list(raw_value: object) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+    return [value.strip() for value in raw_value if isinstance(value, str) and value.strip()]
+
+
+def _coerced_plan_action(raw_action: object) -> PlanAction:
+    if isinstance(raw_action, PlanAction):
+        return raw_action
+    if isinstance(raw_action, str):
+        normalized_action = raw_action.strip().upper().replace("-", "_").replace(" ", "_")
+        if normalized_action in _PLAN_ACTION_ALIASES:
+            return _PLAN_ACTION_ALIASES[normalized_action]
+        try:
+            return PlanAction(normalized_action)
+        except ValueError:
+            return PlanAction.STOP
+    return PlanAction.STOP
+
+
+def _coerced_on_failure(raw_policy: object) -> OnFailurePolicy:
+    if isinstance(raw_policy, OnFailurePolicy):
+        return raw_policy
+    if isinstance(raw_policy, str):
+        normalized_policy = raw_policy.strip().upper().replace("-", "_").replace(" ", "_")
+        if normalized_policy in _ON_FAILURE_ALIASES:
+            return _ON_FAILURE_ALIASES[normalized_policy]
+        try:
+            return OnFailurePolicy(normalized_policy)
+        except ValueError:
+            return _DEFAULT_ON_FAILURE_POLICY
+    return _DEFAULT_ON_FAILURE_POLICY
+
+
+def _coerced_timeout_seconds(raw_timeout: object) -> float:
+    if isinstance(raw_timeout, int | float):
+        timeout_seconds = float(raw_timeout)
+        if timeout_seconds > 0.0:
+            return timeout_seconds
+    return _DEFAULT_STEP_TIMEOUT_S
+
+
+def _coerced_target_spec(raw_target: object) -> TargetSpec | None:
+    if raw_target is None:
+        return None
+    if isinstance(raw_target, TargetSpec):
+        return raw_target
+    if isinstance(raw_target, str):
+        normalized_label = raw_target.strip()
+        if normalized_label:
+            return TargetSpec(label=normalized_label)
+        return None
+    if isinstance(raw_target, dict):
+        try:
+            return TargetSpec.model_validate(raw_target)
+        except Exception:
+            return None
+    return None
+
+
+def normalize_mission_plan(
+    raw_plan: object,
+    fallback_objective: str = "Mission objective unavailable.",
+) -> MissionPlan:
+    if isinstance(raw_plan, MissionPlan):
+        return raw_plan
+    if not isinstance(raw_plan, dict):
+        raw_plan = {}
+
+    mission_identifier = _normalized_identifier(raw_plan.get("mission_id"), "mission")
+    raw_objective = raw_plan.get("objective")
+    objective = (
+        raw_objective.strip()
+        if isinstance(raw_objective, str) and raw_objective.strip()
+        else fallback_objective
+    )
+    assumptions = _normalized_string_list(raw_plan.get("assumptions"))
+    completion_summary_fields = _normalized_string_list(raw_plan.get("completion_summary_fields"))
+
+    raw_steps = raw_plan.get("steps")
+    normalized_steps: list[PlanStep] = []
+    if isinstance(raw_steps, list):
+        for raw_step in raw_steps:
+            step_payload = raw_step if isinstance(raw_step, dict) else {}
+            raw_parameters = step_payload.get("parameters")
+            parameters = raw_parameters if isinstance(raw_parameters, dict) else {}
+            normalized_steps.append(
+                PlanStep(
+                    step_id=_normalized_identifier(step_payload.get("step_id"), "step"),
+                    action=_coerced_plan_action(step_payload.get("action")),
+                    target=_coerced_target_spec(step_payload.get("target")),
+                    parameters=parameters,
+                    timeout_s=_coerced_timeout_seconds(step_payload.get("timeout_s")),
+                    on_failure=_coerced_on_failure(step_payload.get("on_failure")),
+                )
+            )
+    if not normalized_steps:
+        normalized_steps.append(
+            PlanStep(
+                step_id=new_identifier("step"),
+                action=PlanAction.STOP,
+                target=None,
+                parameters={},
+                timeout_s=_DEFAULT_STEP_TIMEOUT_S,
+                on_failure=OnFailurePolicy.STOP,
+            )
+        )
+    return MissionPlan(
+        mission_id=mission_identifier,
+        objective=objective,
+        assumptions=assumptions,
+        steps=normalized_steps,
+        completion_summary_fields=completion_summary_fields,
+    )
 
 
 @dataclass
@@ -218,6 +357,14 @@ class OpenAICognitiveProvider:
         response = client.responses.create(
             model=self.openai_model,
             reasoning={"effort": self.openai_reasoning_effort},
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "mission_plan",
+                    "schema": MissionPlan.model_json_schema(),
+                    "strict": True,
+                }
+            },
             input=[
                 {
                     "role": "system",
@@ -228,6 +375,8 @@ class OpenAICognitiveProvider:
                         "Actions must be limited to NAVIGATE, SEARCH, PATROL, OBSERVE, "
                         "INSPECT, APPROACH, "
                         "FOLLOW, TOUCH, NUDGE, RETREAT, RETURN_HOME, WAIT, STOP. "
+                        "Every PlanStep must include step_id, action, parameters, timeout_s, "
+                        "on_failure. "
                         "Never emit motor/joint commands."
                     ),
                 },
@@ -245,7 +394,15 @@ class OpenAICognitiveProvider:
             timeout=self.brain_config.request_timeout_s,
         )
         text_output = response.output_text
-        return MissionPlan.model_validate_json(text_output)
+        if not isinstance(text_output, str) or not text_output.strip():
+            raise RuntimeError("OpenAI Responses API returned an empty MissionPlan payload.")
+        try:
+            response_payload = json.loads(text_output)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(
+                "OpenAI Responses API returned invalid JSON for MissionPlan."
+            ) from error
+        return normalize_mission_plan(response_payload, fallback_objective=instruction)
 
 
 def create_cognitive_provider(brain_config: BrainConfig) -> CognitiveProvider:
