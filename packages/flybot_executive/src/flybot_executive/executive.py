@@ -40,14 +40,15 @@ class MissionState:
     follow_min_distance_observed: float = 999.0
     touch_contact_count: int = 0
     touch_target_object_id: str | None = None
+    awaiting_decision: bool = False
 
     @property
     def is_active(self) -> bool:
-        return (
-            self.plan is not None
-            and self.failed_step is None
-            and self.active_step_index < len(self.plan.steps)
-        )
+        if self.plan is None or self.failed_step is not None:
+            return False
+        if self.active_step_index < len(self.plan.steps):
+            return True
+        return self.awaiting_decision
 
 
 class MissionExecutive:
@@ -71,6 +72,72 @@ class MissionExecutive:
         )
         return self._state
 
+    def begin_decision_loop(
+        self,
+        mission_id: str,
+        objective: str,
+        assumptions: list[str] | None = None,
+        completion_summary_fields: list[str] | None = None,
+    ) -> MissionState:
+        """Open a mission that receives one bounded action at a time."""
+        plan = MissionPlan(
+            mission_id=mission_id,
+            objective=objective,
+            assumptions=list(assumptions or []),
+            steps=[],
+            completion_summary_fields=list(completion_summary_fields or []),
+        )
+        self._state = MissionState(
+            mission_id=mission_id,
+            plan=plan,
+            awaiting_decision=True,
+            active_intent=self._hold_intent(mission_id),
+        )
+        self._append_timeline(
+            "PLAN_ACCEPTED",
+            {"mission_id": mission_id, "step_count": 0, "decision_loop": True},
+        )
+        return self._state
+
+    def enqueue_bounded_action(self, step: PlanStep, world_state: WorldState) -> bool:
+        """Start one JEV-selected action. Refuses a second action while one is running."""
+        if self._state.plan is None or self._state.failed_step is not None:
+            return False
+        if not self._state.awaiting_decision:
+            return False
+        if self._state.active_step_index < len(self._state.plan.steps):
+            return False
+        self._state.plan.steps.append(step)
+        self._start_active_step(step, world_state)
+        return True
+
+    def needs_decision(self) -> bool:
+        if self._state.plan is None or self._state.failed_step is not None:
+            return False
+        if not self._state.awaiting_decision:
+            return False
+        return self._state.active_step_index >= len(self._state.plan.steps)
+
+    def mission_loop_finished(self) -> bool:
+        return (
+            self._state.plan is not None
+            and self._state.failed_step is None
+            and not self._state.awaiting_decision
+            and len(self._state.plan.steps) > 0
+            and self._state.active_step_index >= len(self._state.plan.steps)
+        )
+
+    def release_failed_step_for_replan(self) -> None:
+        if self._state.plan is None or self._state.failed_step is None:
+            return
+        self._state.failed_step = None
+        self._state.active_step_index += 1
+        self._state.step_started_at_s = None
+        self._state.active_step_context = {}
+        self._state.awaiting_decision = True
+        self._state.active_intent = self._hold_intent(self._state.plan.mission_id)
+        self._append_timeline("DECISION_RETRY", {"mission_id": self._state.plan.mission_id})
+
     def cancel_with_stop(self) -> None:
         if self._state.plan is None:
             return
@@ -91,6 +158,11 @@ class MissionExecutive:
         if self._state.failed_step is not None:
             return self._state.active_intent
         if self._state.active_step_index >= len(self._state.plan.steps):
+            if (
+                self._state.active_intent is not None
+                and self._state.active_intent.mode != IntentMode.STOP
+            ):
+                self._state.active_intent.issued_at_ns = monotonic_time_ns()
             return self._state.active_intent
 
         active_step = self._state.plan.steps[self._state.active_step_index]
@@ -106,8 +178,13 @@ class MissionExecutive:
 
         if self._tick_active_step(active_step, world_state, contacts, elapsed_s):
             self._complete_active_step(active_step)
-            if self._state.active_step_index >= len(self._state.plan.steps):
+            if self._state.active_step_index < len(self._state.plan.steps):
+                next_step = self._state.plan.steps[self._state.active_step_index]
+                self._start_active_step(next_step, world_state)
+                return self._state.active_intent
+            if active_step.action == PlanAction.STOP or not self._state.awaiting_decision:
                 assert self._state.plan is not None
+                self._state.awaiting_decision = False
                 self._state.active_intent = self._new_intent(
                     mission_id=self._state.plan.mission_id,
                     step_id="mission_complete",
@@ -119,8 +196,15 @@ class MissionExecutive:
                     "MISSION_COMPLETED", {"mission_id": self._state.plan.mission_id}
                 )
                 return self._state.active_intent
-            next_step = self._state.plan.steps[self._state.active_step_index]
-            self._start_active_step(next_step, world_state)
+            assert self._state.plan is not None
+            self._state.active_intent = self._hold_intent(self._state.plan.mission_id)
+            self._append_timeline(
+                "AWAITING_DECISION",
+                {
+                    "mission_id": self._state.plan.mission_id,
+                    "completed_steps": len(self._state.completed_steps),
+                },
+            )
             return self._state.active_intent
 
         if (
@@ -646,6 +730,15 @@ class MissionExecutive:
                     Pose2D(x=float(coordinate_x), y=float(coordinate_y), heading_rad=0.0)
                 )
         return parsed_waypoints
+
+    def _hold_intent(self, mission_id: str) -> IntentCommand:
+        return self._new_intent(
+            mission_id=mission_id,
+            step_id="await_decision",
+            mode=IntentMode.WAIT,
+            desired_speed=0.0,
+            stand_off_body_lengths=0.0,
+        )
 
     def _new_intent(
         self,

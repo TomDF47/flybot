@@ -17,6 +17,10 @@ class SafetyKernel:
         self._safety_config = safety_config
         self._e_stop_latched = False
 
+    @property
+    def estop_latched(self) -> bool:
+        return self._e_stop_latched
+
     def set_estop_latched(self, latched: bool) -> None:
         self._e_stop_latched = latched
 

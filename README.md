@@ -25,6 +25,10 @@ Still prototype-level:
 
 - Recording/replay/benchmark are lightweight scaffolds, not final research analytics.
 - OpenAI planning remains optional and is not required for CI/demo success.
+- **JEV decision loop** (on by default): the planner still proposes the objective
+  and candidate steps, and JEV releases one bounded intent per iteration until
+  the mission is done. The running status is `Running in a loop until you are done`.
+  Motor commands stay behind FlyCore and SafetyKernel. E-stop does not call JEV.
 - OpenAI planning uses Responses structured outputs (MissionPlan JSON schema) and
   performs post-processing normalization so missing `mission_id`/`step_id` and
   absent step defaults can be repaired safely at runtime.
@@ -147,6 +151,14 @@ See `.env.example`.
 Key values:
 
 - `BRAIN_PROVIDER=fake|openai`
+- `JEV_ENABLED=true|false` (default **on**). JEV selects one bounded intent at a
+  time and keeps going until the mission is done. `false` keeps the one-shot
+  planner path used by deterministic CI tests.
+- `JEV_MODEL=typesafe/jev-1.13` (default). Live calls use `OPENROUTER_API_KEY`
+  against `https://openrouter.ai/api/alpha/decisions`. `TYPESAFE_API_KEY` uses
+  `https://api.typesafe.ai/v1/systemone` instead (`jev-latest` when the model id
+  contains a slash). With neither key, the same loop runs an offline selector so
+  local demos stay deterministic. Keys are not written to telemetry.
 - `OPENAI_MODEL=<model-name>` (clean Responses API model id, e.g. `gpt-5`)
 - `OPENAI_REASONING_EFFORT=minimal|low|medium|high|xhigh`
   (`none` is normalized to `minimal`, `max` is normalized to `xhigh`; unknown

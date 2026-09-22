@@ -4,6 +4,14 @@ brain:
   reasoning_effort: medium
   request_timeout_s: 30
   perception_interval_s: 0.5
+  # JEV selects one bounded intent per iteration until the mission is done.
+  jev_enabled: true
+  jev_model: typesafe/jev-1.13
+  jev_request_timeout_s: 10
+  jev_stale_response_s: 5
+  jev_stale_displacement: 0.8
+  jev_max_decisions: 48
+  jev_max_consecutive_failures: 3
 control:
   flycore_hz: 100
   executive_hz: 10

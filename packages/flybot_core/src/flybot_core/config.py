@@ -38,11 +38,46 @@ class BrainConfig(BaseModel):
     reasoning_effort: OpenAIReasoningEffort = "medium"
     request_timeout_s: float = 30.0
     perception_interval_s: float = 0.5
+    jev_enabled: bool = True
+    jev_model: str = "typesafe/jev-1.13"
+    jev_request_timeout_s: float = 10.0
+    jev_stale_response_s: float = 5.0
+    jev_stale_displacement: float = 0.8
+    jev_max_decisions: int = 48
+    jev_max_consecutive_failures: int = 3
 
     @field_validator("reasoning_effort", mode="before")
     @classmethod
     def validate_reasoning_effort(cls, raw_effort: object) -> OpenAIReasoningEffort:
         return normalize_openai_reasoning_effort(raw_effort)
+
+    @field_validator("jev_model")
+    @classmethod
+    def validate_jev_model(cls, raw_model: object) -> str:
+        if not isinstance(raw_model, str) or not raw_model.strip():
+            raise ValueError("JEV_MODEL must be a non-empty model id")
+        return raw_model.strip()
+
+    @field_validator("jev_request_timeout_s", "jev_stale_response_s")
+    @classmethod
+    def validate_positive_jev_seconds(cls, raw_seconds: float) -> float:
+        if raw_seconds <= 0.0:
+            raise ValueError("JEV timing values must be greater than zero")
+        return raw_seconds
+
+    @field_validator("jev_stale_displacement")
+    @classmethod
+    def validate_stale_displacement(cls, raw_displacement: float) -> float:
+        if raw_displacement < 0.0:
+            raise ValueError("jev_stale_displacement must be zero or greater")
+        return raw_displacement
+
+    @field_validator("jev_max_decisions", "jev_max_consecutive_failures")
+    @classmethod
+    def validate_positive_jev_counts(cls, raw_count: int) -> int:
+        if raw_count < 1:
+            raise ValueError("JEV attempt limits must be at least 1")
+        return raw_count
 
 
 class ControlConfig(BaseModel):
@@ -93,6 +128,10 @@ class EnvironmentSettings(BaseSettings):
         default="medium", alias="OPENAI_REASONING_EFFORT"
     )
     brain_provider: str = Field(default="fake", alias="BRAIN_PROVIDER")
+    jev_enabled: bool = Field(default=True, alias="JEV_ENABLED")
+    jev_model: str = Field(default="typesafe/jev-1.13", alias="JEV_MODEL")
+    openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
+    typesafe_api_key: str | None = Field(default=None, alias="TYPESAFE_API_KEY")
     body_backend: str = Field(default="", alias="BODY_BACKEND")
     simulation_backend: str = Field(default="mock", alias="SIMULATION_BACKEND")
     simulation_seed: int = Field(default=42, alias="SIMULATION_SEED")
@@ -112,6 +151,13 @@ class EnvironmentSettings(BaseSettings):
     @classmethod
     def validate_openai_reasoning_effort(cls, raw_effort: object) -> OpenAIReasoningEffort:
         return normalize_openai_reasoning_effort(raw_effort)
+
+    @field_validator("jev_model")
+    @classmethod
+    def validate_jev_model(cls, raw_model: object) -> str:
+        if not isinstance(raw_model, str) or not raw_model.strip():
+            raise ValueError("JEV_MODEL must be a non-empty model id")
+        return raw_model.strip()
 
 
 def _expand_environment_variables(value: Any) -> Any:
@@ -135,6 +181,8 @@ def load_config(config_path: Path | str = Path("configs/default.yaml")) -> FlyBo
     loaded_config.brain.model = environment_settings.openai_model
     loaded_config.brain.reasoning_effort = environment_settings.openai_reasoning_effort
     loaded_config.brain.provider = environment_settings.brain_provider
+    loaded_config.brain.jev_enabled = environment_settings.jev_enabled
+    loaded_config.brain.jev_model = environment_settings.jev_model.strip()
     selected_backend = (
         environment_settings.body_backend.strip()
         if environment_settings.body_backend.strip()

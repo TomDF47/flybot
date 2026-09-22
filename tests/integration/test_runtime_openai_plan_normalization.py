@@ -12,6 +12,7 @@ async def test_runtime_openai_plan_normalization_handles_missing_step_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BRAIN_PROVIDER", "openai")
+    monkeypatch.setenv("JEV_ENABLED", "false")
     monkeypatch.setenv("BODY_BACKEND", "mock")
     monkeypatch.setenv("SIMULATION_BACKEND", "mock")
     monkeypatch.setenv("SIMULATION_SEED", "42")

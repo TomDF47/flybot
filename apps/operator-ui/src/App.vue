@@ -94,6 +94,32 @@ const missionIdentifier = computed(() => {
   return typeof missionId === "string" && missionId.length > 0 ? missionId : "none";
 });
 
+const decisionLoop = computed(() => asObject(safeState.value.mission.decision_loop));
+
+const decisionStatusText = computed(() => {
+  if (decisionLoop.value.enabled !== true) {
+    return "JEV off";
+  }
+  const statusText = decisionLoop.value.status_text;
+  if (typeof statusText === "string" && statusText.length > 0) {
+    return statusText;
+  }
+  return "idle";
+});
+
+const selectedActionText = computed(() => {
+  const selectedAction = decisionLoop.value.selected_action;
+  return typeof selectedAction === "string" && selectedAction.length > 0 ? selectedAction : "none";
+});
+
+const decisionModelText = computed(() => {
+  const model = decisionLoop.value.model;
+  const source = decisionLoop.value.source;
+  const modelText = typeof model === "string" && model.length > 0 ? model : "n/a";
+  const sourceText = typeof source === "string" && source.length > 0 ? source : "n/a";
+  return `${modelText} (${sourceText})`;
+});
+
 async function fetchState() {
   try {
     const response = await fetch("/api/state?include_frame=0");
@@ -228,6 +254,7 @@ onUnmounted(() => {
   <main class="layout">
     <section class="panel panel-command">
       <h1>FlyBot Operator UI</h1>
+      <p class="decision-status">{{ decisionStatusText }}</p>
       <p v-if="apiError" class="error-banner">{{ apiError }}</p>
       <div class="command-row">
         <input v-model="instruction" type="text" />
@@ -264,6 +291,8 @@ onUnmounted(() => {
       <p>Angular speed: {{ angularSpeedText }}</p>
       <p>Controller mode: {{ safeState.controller.mode ?? "n/a" }}</p>
       <p>Mission id: {{ missionIdentifier }}</p>
+      <p>JEV: {{ decisionModelText }}</p>
+      <p>Selected action: {{ selectedActionText }}</p>
       <p>Completed steps: {{ completedStepsCount }}</p>
       <p>Change events: {{ safeState.mission.change_events_count ?? 0 }}</p>
       <p>Follow min distance: {{ safeState.mission.follow_min_distance_observed ?? "n/a" }}</p>
@@ -344,6 +373,12 @@ button {
 
 .message {
   color: #8fb8ff;
+  min-height: 1.2rem;
+}
+
+.decision-status {
+  color: #ffe3a2;
+  font-weight: 700;
   min-height: 1.2rem;
 }
 

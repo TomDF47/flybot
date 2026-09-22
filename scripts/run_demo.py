@@ -5,6 +5,7 @@ import asyncio
 from time import monotonic
 
 from flybot_api.service import FlyBotRuntime
+from flybot_executive.progress import classify_mission_progress
 
 
 async def run_demo(instruction: str, timeout_s: float) -> bool:
@@ -17,18 +18,13 @@ async def run_demo(instruction: str, timeout_s: float) -> bool:
             mission_state = runtime.status().mission_state
             if mission_state["mission_id"] == mission_id:
                 completed_steps = mission_state["completed_steps"]
-                failed_step = mission_state["failed_step"]
-                current_plan = runtime.executive.current_state().plan
+                progress = classify_mission_progress(mission_state)
                 print(
-                    f"mission={mission_id} completed={len(completed_steps)} "
-                    f"failed={failed_step is not None}"
+                    f"mission={mission_id} completed={len(completed_steps)} progress={progress}"
                 )
-                if failed_step is not None:
+                if progress == "failed":
                     return False
-                if (
-                    current_plan is not None
-                    and mission_state["active_step_index"] >= len(current_plan.steps)
-                ):
+                if progress == "succeeded":
                     return True
             await asyncio.sleep(0.25)
         return False

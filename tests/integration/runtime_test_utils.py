@@ -19,6 +19,7 @@ def configure_deterministic_runtime_env(
 ) -> None:
     """Pin runtime integration tests to deterministic fake/mock execution."""
     monkeypatch.setenv("BRAIN_PROVIDER", "fake")
+    monkeypatch.setenv("JEV_ENABLED", "false")
     monkeypatch.setenv("BODY_BACKEND", "mock")
     monkeypatch.setenv("SIMULATION_BACKEND", "mock")
     monkeypatch.setenv("SIMULATION_SEED", str(simulation_seed))

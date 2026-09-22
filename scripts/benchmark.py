@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from flybot_api.service import FlyBotRuntime
+from flybot_executive.progress import classify_mission_progress
 
 
 def _load_scenario_files(scenarios_directory: Path) -> list[dict[str, Any]]:
@@ -35,11 +36,11 @@ async def _run_single_benchmark(
     mission_id = await runtime.submit_instruction(instruction)
     while True:
         mission_state = runtime.status().mission_state
-        current_plan = runtime.executive.current_state().plan
-        if mission_state["mission_id"] != mission_id or current_plan is None:
+        if mission_state["mission_id"] != mission_id:
             await asyncio.sleep(0.05)
             continue
-        if mission_state["failed_step"] is not None:
+        progress = classify_mission_progress(mission_state)
+        if progress == "failed":
             elapsed_s = time.perf_counter() - benchmark_started_at
             return {
                 "scenario": scenario["name"],
@@ -50,7 +51,7 @@ async def _run_single_benchmark(
                 "failed_step": mission_state["failed_step"],
                 "completed_steps": len(mission_state["completed_steps"]),
             }
-        if mission_state["active_step_index"] >= len(current_plan.steps):
+        if progress == "succeeded":
             elapsed_s = time.perf_counter() - benchmark_started_at
             return {
                 "scenario": scenario["name"],
